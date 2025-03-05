@@ -1,11 +1,16 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 
-from .db import init_db
-from .models.auth import UserAuthModel
-from .routers.auth import router as auth_router
+from app.db import init_db
+from app.models.auth import UserAuthModel
+from app.routers.auth import router as auth_router
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+
+app = FastAPI(lifespan=lifespan)
 
 # настройка CORS
 app.add_middleware(
@@ -17,10 +22,6 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
-
-@app.on_event("startup")
-def on_startup():
-    init_db()
 
 @app.get("/")
 def read_root():

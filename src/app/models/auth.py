@@ -1,8 +1,9 @@
 import re
-from sqlmodel import SQLModel, Field, validator, Session
+from sqlmodel import SQLModel, Field, Session
 from fastapi import Depends
+from pydantic import field_validator
 
-from services.hashers import make_password
+from app.services.hashers import make_password
 from app.db import get_session
 
 EMAIL_REGEX = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
@@ -18,6 +19,7 @@ class UserModel(SQLModel):
     def set_password(self, password: str):
         self.password = make_password(password)
     # функция для создания пользователя
+    # TODO добавить проверку есть ли почта в базе данных
     @classmethod
     def create_user(cls, username:str, email:str, password:str, session: Session=Depends(get_session)):
         user_data = {
@@ -44,13 +46,13 @@ class UserModel(SQLModel):
         session.refresh(user)
         return user
 
-    @validator("email")
+    @field_validator("email")
     def validate_email(cls, email):
         if not re.match(EMAIL_REGEX, email):
             raise ValueError("Must be a valid email address")
         return email
     
-    @validator("password")
+    @field_validator("password")
     def validate_password(cls, password):
         if not re.match(PASSWORD_REGEX, password):
             raise ValueError("Password are incorrect")

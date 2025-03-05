@@ -10,14 +10,11 @@ router = APIRouter()
 
 @router.get("/users", response_model=list[UserAuthModel])
 def get_user(session: Session=Depends(get_session)):
-    result = session.execute(select(UserAuthModel))
+    result = session.exec(select(UserAuthModel))
     users = result.scalars().all()
     return [UserAuthModel(username=user.username, email=user.email, password=user.password, id=user.id) for user in users]
 
 @router.post('/signup')
 def signup(user: CreateUserModel, session: Session=Depends(get_session)):
-    user = UserAuthModel(username=user.username, email=user.email, password=user.password)
-    session.add(user)
-    session.commit()
-    session.refresh(user)
+    user = UserAuthModel.create_user(username=user.username, email=user.email, password=user.password, session=session)
     return user
