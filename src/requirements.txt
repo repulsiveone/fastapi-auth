@@ -5,6 +5,7 @@ psycopg2-binary==2.9.1
 sqlmodel==0.0.4
 uvicorn==0.11.3
 
-#dev
 pytest==5.4.1
 requests==2.23.0
+bcrypt==4.3.0
+passlib==1.7.4
