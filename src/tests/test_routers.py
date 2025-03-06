@@ -3,6 +3,7 @@ from app.main import app, auth_router
 from sqlmodel import Session
 from app.models.auth import UserAuthModel, CreateUserModel
 from app.db import get_session
+from app.services.hashers import get_password
 
 app.include_router(auth_router)
 
@@ -27,5 +28,8 @@ def test_signup(test_session):
     assert user is not None
     assert user.username == user_data["username"]
     assert user.email == user_data["email"]
+    # проверка что пароль захэширован
+    assert user.password != user_data["password"]
+    assert get_password(user_data["password"], user.password) == True
 
     app.dependency_overrides = {}

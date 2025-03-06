@@ -10,7 +10,16 @@ def test_usermodel(test_session):
     assert user.id is not None
     assert user.username == 'xpfxz'
     assert user.email == 'xpfxz@bk.ru'
+    assert user.is_active == True
+    assert user.is_superuser == False
 
+
+def test_usermodel_superuser(test_session):
+    user = UserAuthModel.create_superuser(username='xpfxz', email='xpfxz@bk.ru', password='qwe123QW$#!', session=test_session)
+    
+    assert user.id is not None
+    assert user.is_active == True
+    assert user.is_superuser == True
 
 def test_usermodel_validation_errors(test_session):
     with pytest.raises(ValidationError) as exc_info:
