@@ -6,18 +6,19 @@ import os
 from dotenv import load_dotenv
 from sqlmodel import Session, create_engine
 from sqlalchemy import select
-from fastapi import Depends
+from fastapi import Depends, HTTPException, status
 
 from app.models.auth import UserAuthModel
 from app.db import engine
 
 # ДЛЯ ТЕСТОВ!
-# engine = create_engine("sqlite:///test.db", echo=True)
+engine = create_engine("sqlite:///test.db", echo=True)
 
 # для работы с .env
 load_dotenv()
 
 ACCESS_TOKEN_EXPIRE_MINUTES = 30  # 30 минут
+# TODO сделать логику для обновления токена
 REFRESH_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 # 7 дней
 ALGORITHM = "HS256"
 JWT_SECRET_KEY = os.environ['JWT_SECRET_KEY']   # обязательно сохранять в секрете
@@ -45,8 +46,17 @@ def create_refresh_token(subject: Union[str, Any], expires_delta: int = None) ->
     encoded_jwt = jwt.encode(to_encode, JWT_REFRESH_SECRET_KEY, ALGORITHM)
     return encoded_jwt
 
+def decode_token(token: str):
+    try:
+        payload = jwt.decode(token, JWT_SECRET_KEY, ALGORITHM)
+        return payload
+    except JWTError:
+        return None
+
+
 # функция для входа пользователя
-def login(form_data: OAuth2PasswordRequestForm = Depends()):
+# ожидает на вход email и password, возвращает словарь с JWT-токенами
+def login(form_data: OAuth2PasswordRequestForm = Depends()) -> dict:
     with Session(engine) as session:
         statement = select(UserAuthModel).where(UserAuthModel.email == form_data.username) # form_data.username содержит email в OAuth2PasswordRequestForm
         user = session.exec(statement).scalars().first()
@@ -60,3 +70,27 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
         "access_token": create_access_token(user.email),
         "refresh_token": create_refresh_token(user.email),
     }
+
+async def current_user(token: str = Depends(oauth2_scheme)):
+    ...
+    # исклюяение для невалидных токенов
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+    payload = decode_token(token)
+    if payload is None:
+        raise credentials_exception
+    email: str = payload.get('sub')
+    if email is None:
+        raise credentials_exception
+    with Session(engine) as session:
+        statement = select(UserAuthModel).where(UserAuthModel.email == email)
+        user = session.exec(statement).scalars().first()
+    if user is None:
+        raise credentials_exception
+    return user
+    
+    
