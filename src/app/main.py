@@ -2,13 +2,15 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from app.db import init_db
+from app.db import init_db, engine
 from app.models.auth import UserAuthModel
 from app.routers.auth import router as auth_router
 
+# инициализация базы данных
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()
+    await init_db(engine)
+    yield
 
 app = FastAPI(lifespan=lifespan)
 

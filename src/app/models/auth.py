@@ -1,5 +1,6 @@
 import re
-from sqlmodel import SQLModel, Field, Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import SQLModel, Field
 from fastapi import Depends
 from pydantic import field_validator
 
@@ -21,7 +22,7 @@ class UserModel(SQLModel):
     # функция для создания пользователя
     # TODO добавить проверку есть ли почта в базе данных
     @classmethod
-    def create_user(cls, username:str, email:str, password:str, session: Session=Depends(get_session)):
+    async def create_user(cls, username:str, email:str, password:str, session: AsyncSession=Depends(get_session)):
         user_data = {
             "username": username,
             "email": email,
@@ -33,17 +34,17 @@ class UserModel(SQLModel):
         user.set_password(password)
         #добавление пользователя в базу данных
         session.add(user)
-        session.commit()
-        session.refresh(user)
+        await session.commit()
+        await session.refresh(user)
         return user
     # функция для создания супер-пользователя: создается пользователь -> устанавливается флаг True для is_superuser
     @classmethod
-    def create_superuser(cls, username:str, email:str, password:str, session: Session=Depends(get_session)):
+    async def create_superuser(cls, username:str, email:str, password:str, session: AsyncSession=Depends(get_session)):
         user = cls.create_user(username=username, email=email, password=password, session=session)
         user.is_superuser = True
         session.add(user)
-        session.commit()
-        session.refresh(user)
+        await session.commit()
+        await session.refresh(user)
         return user
 
     @field_validator("email")

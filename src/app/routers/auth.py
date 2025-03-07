@@ -1,4 +1,5 @@
 from fastapi import Depends, FastAPI
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlmodel import Session
 from fastapi import APIRouter, HTTPException
@@ -9,12 +10,12 @@ from app.models.auth import UserAuthModel, CreateUserModel
 router = APIRouter()
 
 @router.get("/users", response_model=list[UserAuthModel])
-def get_user(session: Session=Depends(get_session)):
-    result = session.exec(select(UserAuthModel))
+async def get_user(session: AsyncSession=Depends(get_session)):
+    result = await session.exec(select(UserAuthModel))
     users = result.scalars().all()
     return [UserAuthModel(username=user.username, email=user.email, password=user.password, id=user.id) for user in users]
 
 @router.post('/signup')
-def signup(user: CreateUserModel, session: Session=Depends(get_session)):
-    user = UserAuthModel.create_user(username=user.username, email=user.email, password=user.password, session=session)
+async def signup(user: CreateUserModel, session: AsyncSession=Depends(get_session)):
+    user = await UserAuthModel.create_user(username=user.username, email=user.email, password=user.password, session=session)
     return user

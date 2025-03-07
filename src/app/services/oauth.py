@@ -2,6 +2,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import jwt, JWTError
 from datetime import datetime, timedelta, timezone
 from typing import Union, Any
+from sqlalchemy.ext.asyncio import AsyncSession
 import os
 from dotenv import load_dotenv
 from sqlmodel import Session, create_engine
@@ -9,7 +10,7 @@ from sqlalchemy import select
 from fastapi import Depends, HTTPException, status
 
 from app.models.auth import UserAuthModel
-from app.db import engine
+from app.db import engine, get_session
 
 # ДЛЯ ТЕСТОВ!
 engine = create_engine("sqlite:///test.db", echo=True)
@@ -56,10 +57,10 @@ def decode_token(token: str):
 
 # функция для входа пользователя
 # ожидает на вход email и password, возвращает словарь с JWT-токенами
-def login(form_data: OAuth2PasswordRequestForm = Depends()) -> dict:
-    with Session(engine) as session:
-        statement = select(UserAuthModel).where(UserAuthModel.email == form_data.username) # form_data.username содержит email в OAuth2PasswordRequestForm
-        user = session.exec(statement).scalars().first()
+async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_session)) -> dict:
+    statement = select(UserAuthModel).where(UserAuthModel.email == form_data.username) # form_data.username содержит email в OAuth2PasswordRequestForm
+    result = await db.exec(statement)
+    user = result.scalars().first()
     if user is None:
         ...
         return None
@@ -71,7 +72,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()) -> dict:
         "refresh_token": create_refresh_token(user.email),
     }
 
-async def current_user(token: str = Depends(oauth2_scheme)):
+async def current_user(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_session)):
     ...
     # исклюяение для невалидных токенов
     credentials_exception = HTTPException(
@@ -86,9 +87,10 @@ async def current_user(token: str = Depends(oauth2_scheme)):
     email: str = payload.get('sub')
     if email is None:
         raise credentials_exception
-    with Session(engine) as session:
-        statement = select(UserAuthModel).where(UserAuthModel.email == email)
-        user = session.exec(statement).scalars().first()
+    statement = select(UserAuthModel).where(UserAuthModel.email == email)
+    result = await db.exec(statement)
+    user = result.scalars().first()
+
     if user is None:
         raise credentials_exception
     return user
