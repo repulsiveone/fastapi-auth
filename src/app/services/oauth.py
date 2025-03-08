@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import os
 from dotenv import load_dotenv
 from sqlmodel import Session, create_engine
+from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import select
 from fastapi import Depends, HTTPException, status
 
@@ -13,7 +14,7 @@ from app.models.auth import UserAuthModel
 from app.db import engine, get_session
 
 # ДЛЯ ТЕСТОВ!
-engine = create_engine("sqlite:///test.db", echo=True)
+engine = create_async_engine("sqlite+aiosqlite:///test.db", echo=True)
 
 # для работы с .env
 load_dotenv()
@@ -59,7 +60,7 @@ def decode_token(token: str):
 # ожидает на вход email и password, возвращает словарь с JWT-токенами
 async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_session)) -> dict:
     statement = select(UserAuthModel).where(UserAuthModel.email == form_data.username) # form_data.username содержит email в OAuth2PasswordRequestForm
-    result = await db.exec(statement)
+    result = await db.execute(statement)
     user = result.scalars().first()
     if user is None:
         ...
@@ -88,7 +89,7 @@ async def current_user(token: str = Depends(oauth2_scheme), db: AsyncSession = D
     if email is None:
         raise credentials_exception
     statement = select(UserAuthModel).where(UserAuthModel.email == email)
-    result = await db.exec(statement)
+    result = await db.execute(statement)
     user = result.scalars().first()
 
     if user is None:

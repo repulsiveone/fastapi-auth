@@ -22,7 +22,8 @@ class UserModel(SQLModel):
     # функция для создания пользователя
     # TODO добавить проверку есть ли почта в базе данных
     @classmethod
-    async def create_user(cls, username:str, email:str, password:str, session: AsyncSession=Depends(get_session)):
+    # TODO использовать Depends напрямую нельзя, так как это нарушает принципы ООП
+    async def create_user(cls, username:str, email:str, password:str, session: AsyncSession):
         user_data = {
             "username": username,
             "email": email,
@@ -39,8 +40,8 @@ class UserModel(SQLModel):
         return user
     # функция для создания супер-пользователя: создается пользователь -> устанавливается флаг True для is_superuser
     @classmethod
-    async def create_superuser(cls, username:str, email:str, password:str, session: AsyncSession=Depends(get_session)):
-        user = cls.create_user(username=username, email=email, password=password, session=session)
+    async def create_superuser(cls, username:str, email:str, password:str, session: AsyncSession):
+        user = await cls.create_user(username=username, email=email, password=password, session=session)
         user.is_superuser = True
         session.add(user)
         await session.commit()
