@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 from app.main import app, auth_router
 from sqlmodel import Session
@@ -9,7 +10,8 @@ app.include_router(auth_router)
 
 client = TestClient(app)
 
-def test_signup(test_session):
+@pytest.mark.asyncio
+async def test_signup(test_session):
     app.dependency_overrides[get_session] = lambda: test_session
     user_data = {
         "username": "testuser",
@@ -24,7 +26,7 @@ def test_signup(test_session):
     assert response_data["username"] == user_data["username"]
     assert response_data["email"] == user_data["email"]
 
-    user = test_session.get(UserAuthModel, response_data["id"])
+    user = await test_session.get(UserAuthModel, response_data["id"])
     assert user is not None
     assert user.username == user_data["username"]
     assert user.email == user_data["email"]

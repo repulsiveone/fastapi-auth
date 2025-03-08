@@ -13,10 +13,11 @@ def test_create_refresh_token():
     refresh_token = create_refresh_token('xpfz@bk.ru')
     assert refresh_token is not None
 
-def test_login_success(test_user, test_session):
+@pytest.mark.asyncio
+async def test_login_success(test_user, test_session):
     form_data = OAuth2PasswordRequestForm(username="test@example.com", password="Passw!@#ord123!")
 
-    user = login(form_data=form_data)
+    user = await login(form_data=form_data, db=test_session)
 
     assert "access_token" in user
     assert "refresh_token" in user
@@ -36,11 +37,11 @@ async def test_current_user_success(test_user, test_session):
     ...
     form_data = OAuth2PasswordRequestForm(username="test@example.com", password="Passw!@#ord123!")
 
-    user = login(form_data=form_data)
+    user = await login(form_data=form_data, db=test_session)
 
     access_token = user['access_token']
 
-    curr = await current_user(access_token)
+    curr = await current_user(access_token, db=test_session)
 
     assert curr is not None
     assert curr.email == "test@example.com"

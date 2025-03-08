@@ -1,28 +1,36 @@
-import pytest
+import pytest_asyncio
 from sqlmodel import SQLModel, create_engine, Session
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine, AsyncSession
+from sqlalchemy.orm import sessionmaker
 
 from app.models.auth import UserAuthModel, CreateUserModel
 from app.services.hashers import make_password
 
-@pytest.fixture(name="test_session")
-def session_fixture():
-    # Создаем движок для SQLite в памяти
-    engine = create_engine("sqlite:///test.db", echo=True)
+@pytest_asyncio.fixture(name="test_session")
+async def session_fixture():
+    # Создаем движок для SQLite
+    engine = create_async_engine("sqlite+aiosqlite:///test.db", echo=True)
+
+    async_session = sessionmaker(
+        engine, class_=AsyncSession, expire_on_commit=False
+    )
     
-    # Создаем таблицы
-    SQLModel.metadata.create_all(engine)
+    # Создаем таблицы асинхронно 
+    async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
     
     # Возвращаем сессию
-    with Session(engine) as session:
+    async with async_session() as session:
         yield session
 
-    # Удаляем все таблицы после завершения теста
-    SQLModel.metadata.drop_all(engine)
+    # Удаляем все таблицы асинхронно после завершения теста
+    async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.drop_all)
 
-@pytest.fixture(name="test_user")
-def user_fixture(test_session):
+@pytest_asyncio.fixture(name="test_user")
+async def user_fixture(test_session: AsyncSession):
     # Создаём тестового пользователя
-    user = UserAuthModel.create_user(
+    user = await UserAuthModel.create_user(
         username="testuser",
         email="test@example.com",
         password="Passw!@#ord123!",
