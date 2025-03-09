@@ -19,6 +19,9 @@ engine = create_async_engine("sqlite+aiosqlite:///test.db", echo=True)
 # для работы с .env
 load_dotenv()
 
+# ДлЯ ТЕСВТОВ!
+# ACCESS_TOKEN_EXPIRE_MINUTES = 1
+
 ACCESS_TOKEN_EXPIRE_MINUTES = 30  # 30 минут
 # TODO сделать логику для обновления токена
 REFRESH_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 # 7 дней
@@ -48,9 +51,39 @@ def create_refresh_token(subject: Union[str, Any], expires_delta: int = None) ->
     encoded_jwt = jwt.encode(to_encode, JWT_REFRESH_SECRET_KEY, ALGORITHM)
     return encoded_jwt
 
-def decode_token(token: str):
+async def refresh_token(refresh_token: str):
+    ...
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+    try:
+        payload = decode_refresh_token(refresh_token)
+        email: str = payload.get('sub')
+        if email is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+    
+    if datetime.now(timezone.utc) > datetime.fromtimestamp(payload.get('exp'), timezone.utc):
+        raise HTTPException(status_code=401, detail='Refresh token expired')
+    
+    new_access_token = create_access_token(email)
+    return {'access_token': new_access_token, 'token_type': 'bearer'}
+
+
+def decode_access_token(token: str):
     try:
         payload = jwt.decode(token, JWT_SECRET_KEY, ALGORITHM)
+        return payload
+    except JWTError:
+        return None
+    
+def decode_refresh_token(token: str):
+    try:
+        payload = jwt.decode(token, JWT_REFRESH_SECRET_KEY, ALGORITHM)
         return payload
     except JWTError:
         return None
@@ -82,7 +115,7 @@ async def current_user(token: str = Depends(oauth2_scheme), db: AsyncSession = D
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-    payload = decode_token(token)
+    payload = decode_access_token(token)
     if payload is None:
         raise credentials_exception
     email: str = payload.get('sub')
