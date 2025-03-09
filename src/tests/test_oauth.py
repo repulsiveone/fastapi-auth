@@ -1,8 +1,9 @@
 import pytest
+import time
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi import HTTPException
 
-from app.services.oauth import create_access_token, create_refresh_token, login, decode_token, current_user
+from app.services.oauth import create_access_token, create_refresh_token, login, decode_access_token, current_user, refresh_token
 
 
 def test_create_access_token():
@@ -26,7 +27,7 @@ async def test_login_success(test_user, test_session):
     refresh_token = user["refresh_token"]
     
     # assert access_token == {'exp': 1741335236, 'sub': 'test@example.com'}
-    # assert decode_token(access_token) == True
+    # assert _access_token(access_token) == True
 
     # проверяем что JWT токен создался и это строка
     assert isinstance(access_token, str)
@@ -55,3 +56,58 @@ async def test_current_user_raise(test_user, test_session):
         await current_user(invalid_token)
 
     assert exc_info.value.detail == 'Could not validate credentials'
+
+
+@pytest.mark.asyncio
+async def test_refresh_token_raise(test_user, test_session):
+    invalid_token = "yrwey36$YR^rgfg$^&4wfGfysgf"
+    
+    with pytest.raises(HTTPException) as exc_info:
+        await current_user(invalid_token)
+
+    assert exc_info.value.detail == 'Could not validate credentials'
+
+
+@pytest.mark.asyncio
+async def test_refresh_token(test_user, test_session):
+    form_data = OAuth2PasswordRequestForm(username="test@example.com", password="Passw!@#ord123!")
+
+    user = await login(form_data=form_data, db=test_session)
+    token = user['refresh_token']
+
+    new_token = await refresh_token(token)
+    
+    assert new_token is not None
+
+    curr = await current_user(new_token.get('access_token'), db=test_session)
+
+    assert curr.email == "test@example.com"
+
+
+# установить ACCESS_TOKEN_EXPIRE_MINUTES = 1 для правильной работы теста
+# @pytest.mark.asyncio
+# async def test_refresh_work(test_user, test_session):
+#     form_data = OAuth2PasswordRequestForm(username="test@example.com", password="Passw!@#ord123!")
+
+#     user = await login(form_data=form_data, db=test_session)
+#     token = user['access_token']
+#     ref_token = user['refresh_token']
+
+#     curr = await current_user(token, db=test_session)
+
+#     assert curr.email == "test@example.com"
+
+#     time.sleep(80)
+
+#     with pytest.raises(HTTPException) as exc_info:
+#         await current_user(token, db=test_session)
+
+#     assert exc_info.value.detail == 'Could not validate credentials'
+
+#     new_token = await refresh_token(ref_token)
+    
+#     assert new_token is not None
+
+#     curr = await current_user(new_token.get('access_token'), db=test_session)
+
+#     assert curr.email == "test@example.com"
