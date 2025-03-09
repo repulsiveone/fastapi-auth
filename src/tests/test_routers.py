@@ -5,6 +5,7 @@ from sqlmodel import Session
 from app.models.auth import UserAuthModel, CreateUserModel
 from app.db import get_session
 from app.services.hashers import get_password
+from fastapi.security import OAuth2PasswordRequestForm
 
 app.include_router(auth_router)
 
@@ -35,3 +36,17 @@ async def test_signup(test_session):
     assert get_password(user_data["password"], user.password) == True
 
     app.dependency_overrides = {}
+
+@pytest.mark.asyncio
+async def test_login(test_user, test_session):
+    app.dependency_overrides[get_session] = lambda: test_session
+    form_data = {
+        "username": "test@example.com",
+        "password": "Passw!@#ord123!"
+    }
+
+    response = client.post('/login', data=form_data)
+    assert response.status_code == 200
+
+    assert 'access_token' in response.json()
+    assert 'refresh_token' in response.json()
