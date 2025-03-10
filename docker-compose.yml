@@ -1,4 +1,4 @@
-version: '2.0'
+version: '3.8'
 
 services:
   web:
@@ -10,6 +10,10 @@ services:
       - 8002:8000
     environment:
       - DATABASE_URL=${DATABASE_URL}
+      - CELERY_BROKER_URL=${BROKER_URL}
+      - CELERY_RESULT_BACKEND=${BROKER_URL}
+    depends_on:
+      - redis
   db:
     image: postgres:12.1-alpine
     volumes:
@@ -18,6 +22,20 @@ services:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
+  worker:
+      build: ./src
+      command: celery -A worker.celery worker --loglevel=info
+      volumes:
+        - ./src/:/usr/src/app/
+      environment:
+        - CELERY_BROKER_URL=${BROKER_URL}
+        - CELERY_RESULT_BACKEND=${BROKER_URL}
+      depends_on:
+        - web
+        - redis
+
+  redis:
+    image: redis:7
 
 volumes:
   postgres_data:
