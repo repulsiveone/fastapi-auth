@@ -4,11 +4,12 @@ from sqlalchemy import select
 from sqlmodel import Session
 from fastapi import APIRouter, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.responses import JSONResponse
 
 
 from app.db import get_session, init_db
-from app.models.auth import UserAuthModel, CreateUserModel
-from app.services.oauth import login, refresh_access_token, get_refresh_token
+from app.models.auth import UserAuthModel, CreateUserModel, TokenModel
+from app.services.oauth import login, refresh_access_token, get_refresh_token, current_user
 
 router = APIRouter()
 
@@ -40,7 +41,7 @@ async def signin(
         samesite='lax', # Защита от CSRF
         secure=True, # Использовать только через HTTPS
     )
-
+    # access_token должен храниться в переменной JavaScript
     return {'access_token': user['access_token']}
 
 
@@ -60,7 +61,55 @@ async def refresh_token(
     new_access_token = await refresh_access_token(refresh_token, session)
     return {'access_token': new_access_token}
 
-# TODO Выход (/logout)
+@router.post('/logout')
+async def logout(
+    refresh_token: str = Depends(get_refresh_token),
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Выход из системы (отзыв конкретного refresh токена)
+    """
+    # ищем refresh_token в базе данных
+    statement = select(TokenModel).where(TokenModel.token == refresh_token)
+    db_token = await session.execute(statement)
+    result = db_token.scalar_one_or_none()
+
+    if not result:
+        raise HTTPException(
+            status_code=404, detail="Refresh token not found"
+        )
+    
+    # помечаем токен как недействительный
+    result.invalidated = True
+    await session.commit()
+    await session.refresh(result)
+
+    headers = {"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"}
+    content = {"message": "Logged out successfully"}
+    return JSONResponse(content=content, headers=headers)
+
+@router.post('/logout_all')
+async def logout_all(
+    session: AsyncSession = Depends(get_session),
+    current_user = Depends(current_user)
+):
+    """
+    Выход из системы на всех устройствах
+    """
+    # поулчаем id текущего пользователя
+    user_id = current_user.id
+    # находим все токены пользователя
+    statement = select(TokenModel).where(TokenModel.user_id == user_id)
+    refresh_token = await session.execute(statement)
+    result = refresh_token.scalars().all() # возвращает список
+    # помечаем токены как недействительные
+    for token in result:
+        token.invalidated = True
+
+    headers = {"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"}
+    content = {"message": "Logged out from all devices successfully"}
+    return JSONResponse(content=content, headers=headers)
+
 # TODO Получение информации о текущем пользователе (/me)
 # TODO Смена пароля (/change-password)
 # TODO Восстановление пароля (/forgot-password и /reset-password)
