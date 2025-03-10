@@ -2,7 +2,8 @@ import re
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import SQLModel, Field
 from fastapi import Depends
-from pydantic import field_validator
+from pydantic import field_validator, BaseModel, StringConstraints
+from typing_extensions import Annotated
 
 from app.services.hashers import make_password
 # TODO сделать permissions model
@@ -23,13 +24,12 @@ class UserModel(SQLModel):
     password: str = Field(min_length=8, max_length=100)
     is_active: bool = Field(default=True)
     is_superuser: bool = Field(default=False)
-    # TODO добавить функцию update_user, logout + logout_all
+    # TODO добавить функцию update_user
     def set_password(self, password: str):
         self.password = make_password(password)
     # функция для создания пользователя
     # TODO добавить проверку есть ли почта в базе данных
     @classmethod
-    # TODO использовать Depends напрямую нельзя, так как это нарушает принципы ООП
     async def create_user(cls, username:str, email:str, password:str, session: AsyncSession):
         user_data = {
             "username": username,
@@ -72,3 +72,11 @@ class UserAuthModel(UserModel, table=True):
 
 class CreateUserModel(UserModel):
     pass
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: Annotated[
+        str,
+        StringConstraints(pattern=PASSWORD_REGEX)
+    ]

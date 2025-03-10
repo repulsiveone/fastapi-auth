@@ -5,19 +5,30 @@ from sqlmodel import Session
 from fastapi import APIRouter, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.responses import JSONResponse
+from typing import Optional
 
 
 from app.db import get_session, init_db
-from app.models.auth import UserAuthModel, CreateUserModel, TokenModel
+from app.models.auth import UserAuthModel, CreateUserModel, TokenModel, ChangePasswordRequest
 from app.services.oauth import login, refresh_access_token, get_refresh_token, current_user
+from app.services.hashers import get_password, make_password
 
 router = APIRouter()
 
-@router.get("/users", response_model=list[UserAuthModel])
-async def get_user(session: AsyncSession=Depends(get_session)):
-    result = await session.exec(select(UserAuthModel))
-    users = result.scalars().all()
-    return [UserAuthModel(username=user.username, email=user.email, password=user.password, id=user.id) for user in users]
+
+@router.get('/me')
+async def get_myself_info(current_user = Depends(current_user)) -> dict:
+    """
+    Возврашает информацию о пользователе в виде словаря (пароль не передается)
+    """
+    curr_user: Optional[UserAuthModel] = current_user
+    user_info = {
+        'id': curr_user.id,
+        'username': curr_user.username,
+        'email': curr_user.email,
+    }
+    return user_info
+
 
 @router.post('/signup')
 async def signup(user: CreateUserModel, session: AsyncSession=Depends(get_session)):
@@ -30,6 +41,7 @@ async def signin(
     response: Response,
     form_data: OAuth2PasswordRequestForm=Depends(),
     session: AsyncSession=Depends(get_session)) -> dict:
+
     user = await login(form_data=form_data, db=session)
 
     # устанавливаем refresk_token в cookies
@@ -110,6 +122,21 @@ async def logout_all(
     content = {"message": "Logged out from all devices successfully"}
     return JSONResponse(content=content, headers=headers)
 
-# TODO Получение информации о текущем пользователе (/me)
+
+@router.post('/change_password')
+async def change_password(
+    password_data: ChangePasswordRequest,
+    current_user = Depends(current_user),
+    session: AsyncSession = Depends(get_session)
+):
+    # сверяем пароли
+    if not get_password(password_data.current_password, current_user.password):
+        raise HTTPException(status_code=400, detail='Incorrect current password')
+    # меняем новый пароль для пользователя
+    current_user.password = make_password(password_data.new_password)
+    await session.commit()
+
+    return {'message', 'Password changed successfully'}
+
 # TODO Смена пароля (/change-password)
 # TODO Восстановление пароля (/forgot-password и /reset-password)
