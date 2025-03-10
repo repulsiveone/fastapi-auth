@@ -2,6 +2,8 @@ import pytest
 import time
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi import HTTPException
+from app.models.auth import TokenModel
+from sqlmodel import select
 
 from app.services.oauth import create_access_token, create_refresh_token, login, decode_access_token, current_user, refresh_token
 
@@ -25,6 +27,12 @@ async def test_login_success(test_user, test_session):
 
     access_token = user["access_token"]
     refresh_token = user["refresh_token"]
+
+    statement = select(TokenModel).where(TokenModel.user_id==1)
+    db_token = await test_session.execute(statement)
+    result = db_token.scalar_one_or_none()
+
+    assert result is not None
     
     # assert access_token == {'exp': 1741335236, 'sub': 'test@example.com'}
     # assert _access_token(access_token) == True

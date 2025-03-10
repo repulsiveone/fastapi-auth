@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import select
 from fastapi import Depends, HTTPException, status
 
-from app.models.auth import UserAuthModel
+from app.models.auth import UserAuthModel, TokenModel
 from app.db import engine, get_session
 
 # ДЛЯ ТЕСТОВ!
@@ -23,7 +23,6 @@ load_dotenv()
 # ACCESS_TOKEN_EXPIRE_MINUTES = 1
 
 ACCESS_TOKEN_EXPIRE_MINUTES = 30  # 30 минут
-# TODO сделать логику для обновления токена
 REFRESH_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 # 7 дней
 ALGORITHM = "HS256"
 JWT_SECRET_KEY = os.environ['JWT_SECRET_KEY']   # обязательно сохранять в секрете
@@ -91,6 +90,10 @@ def decode_refresh_token(token: str):
 
 # функция для входа пользователя
 # ожидает на вход email и password, возвращает словарь с JWT-токенами
+######################################################
+##  access_token хранить в локальной переменной JS  ##
+##  refresh_token хранить в куки HttpOnly           ##
+######################################################
 async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_session)) -> dict:
     statement = select(UserAuthModel).where(UserAuthModel.email == form_data.username) # form_data.username содержит email в OAuth2PasswordRequestForm
     result = await db.execute(statement)
@@ -99,11 +102,18 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSessi
         ...
         return None
     # TODO проверка пароля
+    
+    refresh_token = create_refresh_token(user.email)
+
+    refresh_token_save = TokenModel(token=refresh_token, user_id=user.id)
+    db.add(refresh_token_save)
+    await db.commit()
+    await db.refresh(refresh_token_save)
 
     # возвращает JWT токены
     return {
         "access_token": create_access_token(user.email),
-        "refresh_token": create_refresh_token(user.email),
+        "refresh_token": refresh_token,
     }
 
 async def current_user(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_session)):

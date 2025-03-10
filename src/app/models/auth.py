@@ -5,10 +5,17 @@ from fastapi import Depends
 from pydantic import field_validator
 
 from app.services.hashers import make_password
-from app.db import get_session
-
+# TODO сделать permissions model
 EMAIL_REGEX = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
 PASSWORD_REGEX = r"^(?=.*[a-z,A-Z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$"
+
+
+class TokenModel(SQLModel, table=True):
+    id: int = Field(default=None, primary_key=True)
+    token: str = Field(default=None, index=True)
+    user_id: int = Field(index=True)
+    invalidated: bool = Field(default=False)
+
 
 class UserModel(SQLModel):
     username: str = Field(default=None, max_length=100)
@@ -16,7 +23,7 @@ class UserModel(SQLModel):
     password: str = Field(min_length=8, max_length=100)
     is_active: bool = Field(default=True)
     is_superuser: bool = Field(default=False)
-
+    # TODO добавить функцию update_user, logout + logout_all
     def set_password(self, password: str):
         self.password = make_password(password)
     # функция для создания пользователя
