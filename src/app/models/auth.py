@@ -2,7 +2,7 @@ import re
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import SQLModel, Field
 from fastapi import Depends
-from pydantic import field_validator, BaseModel, StringConstraints
+from pydantic import field_validator, BaseModel, StringConstraints, constr
 from typing_extensions import Annotated
 
 from app.services.hashers import make_password
@@ -76,7 +76,10 @@ class CreateUserModel(UserModel):
 
 class ChangePasswordRequest(BaseModel):
     current_password: str
-    new_password: Annotated[
-        str,
-        StringConstraints(pattern=PASSWORD_REGEX)
-    ]
+    new_password: str
+
+    @field_validator("new_password")
+    def validate_password(cls, new_password):
+        if not re.match(PASSWORD_REGEX, new_password):
+            raise ValueError("Password are incorrect")
+        return new_password

@@ -10,7 +10,7 @@ from typing import Optional
 
 from app.db import get_session, init_db
 from app.models.auth import UserAuthModel, CreateUserModel, TokenModel, ChangePasswordRequest
-from app.services.oauth import login, refresh_access_token, get_refresh_token, current_user
+from app.services.oauth import login, refresh_access_token,get_refresh_token, current_user
 from app.services.hashers import get_password, make_password
 
 router = APIRouter()
@@ -71,10 +71,12 @@ async def refresh_token(
     session: AsyncSession = Depends(get_session)
 ):
     new_access_token = await refresh_access_token(refresh_token, session)
+    # возвращает access_token в котором access_token и token_type
     return {'access_token': new_access_token}
 
 @router.post('/logout')
 async def logout(
+    response: Response,
     refresh_token: str = Depends(get_refresh_token),
     session: AsyncSession = Depends(get_session)
 ):
@@ -95,6 +97,7 @@ async def logout(
     result.invalidated = True
     await session.commit()
     await session.refresh(result)
+    response.delete_cookie(key="refresh_token")
 
     headers = {"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"}
     content = {"message": "Logged out successfully"}
@@ -138,5 +141,4 @@ async def change_password(
 
     return {'message', 'Password changed successfully'}
 
-# TODO Смена пароля (/change-password)
 # TODO Восстановление пароля (/forgot-password и /reset-password)

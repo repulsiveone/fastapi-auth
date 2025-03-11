@@ -5,7 +5,7 @@ from fastapi import HTTPException
 from app.models.auth import TokenModel
 from sqlmodel import select
 
-from app.services.oauth import create_access_token, create_refresh_token, login, decode_access_token, current_user, refresh_token
+from app.services.oauth import create_access_token, create_refresh_token, login, decode_access_token, current_user, refresh_access_token
 
 
 def test_create_access_token():
@@ -83,7 +83,7 @@ async def test_refresh_token(test_user, test_session):
     user = await login(form_data=form_data, db=test_session)
     token = user['refresh_token']
 
-    new_token = await refresh_token(token)
+    new_token = await refresh_access_token(token, test_session)
     
     assert new_token is not None
 
