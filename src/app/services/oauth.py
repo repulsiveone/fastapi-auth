@@ -14,7 +14,7 @@ from app.models.auth import UserAuthModel, TokenModel
 from app.db import engine, get_session
 
 # ДЛЯ ТЕСТОВ!
-engine = create_async_engine("sqlite+aiosqlite:///test.db", echo=True)
+# engine = create_async_engine("sqlite+aiosqlite:///test.db", echo=True)
 
 # для работы с .env
 load_dotenv()

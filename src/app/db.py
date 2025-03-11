@@ -1,8 +1,11 @@
 import os
+from dotenv import load_dotenv
 from sqlmodel import SQLModel
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, AsyncEngine
 from sqlalchemy.orm import sessionmaker
+
+load_dotenv()
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
