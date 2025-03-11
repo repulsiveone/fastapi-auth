@@ -8,28 +8,34 @@ services:
       - ./src/:/usr/src/app/
     ports:
       - 8002:8000
-    environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - CELERY_BROKER_URL=${BROKER_URL}
-      - CELERY_RESULT_BACKEND=${BROKER_URL}
+    env_file:
+      - .env
     depends_on:
       - redis
   db:
     image: postgres:12.1-alpine
     volumes:
       - postgres_data:/var/lib/postgresql/data/
-    environment:
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB}
+    env_file:
+      - .env
   worker:
       build: ./src
-      command: celery -A worker.celery worker --loglevel=info
+      command: celery -A app.worker.celery worker --loglevel=info --pool=eventlet
       volumes:
         - ./src/:/usr/src/app/
-      environment:
-        - CELERY_BROKER_URL=${BROKER_URL}
-        - CELERY_RESULT_BACKEND=${BROKER_URL}
+      env_file:
+      - .env
+      depends_on:
+        - web
+        - redis
+
+  beat:
+      build: ./src
+      command: celery -A app.worker.celery beat --loglevel=info
+      volumes:
+        - ./src/:/usr/src/app/
+      env_file:
+      - .env
       depends_on:
         - web
         - redis

@@ -16,3 +16,6 @@ pydantic==2.10.6
 python-multipart==0.0.20
 celery==5.2.7
 redis==4.5.4
+python-jose==3.4.0
+python-dotenv==1.0.1
+eventlet==0.39.1
