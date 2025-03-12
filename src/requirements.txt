@@ -1,7 +1,6 @@
 asyncpg==0.30.0
 databases[postgresql]==0.2.6
 fastapi==0.115.11
-psycopg2-binary==2.9.1
 sqlmodel==0.0.23
 uvicorn==0.34.0
 aiosqlite==0.21.0
@@ -14,8 +13,10 @@ passlib==1.7.4
 pytest-asyncio==0.25.3
 pydantic==2.10.6
 python-multipart==0.0.20
-celery==5.2.7
+celery==5.4.0
 redis==4.5.4
 python-jose==3.4.0
 python-dotenv==1.0.1
 eventlet==0.39.1
+pytz
+asyncio
