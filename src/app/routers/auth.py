@@ -32,8 +32,15 @@ async def get_myself_info(current_user = Depends(current_user)) -> dict:
 
 @router.post('/signup')
 async def signup(user: CreateUserModel, session: AsyncSession=Depends(get_session)):
-    user = await UserAuthModel.create_user(username=user.username, email=user.email, password=user.password, session=session)
-    return user
+    try:
+        if await CreateUserModel.email_exists(email=user.email, session=session):
+            raise HTTPException(status_code=409, detail="This email is already registered")
+        else:
+            user = await UserAuthModel.create_user(username=user.username, email=user.email, password=user.password, session=session)
+            return user
+    except Exception as e:
+        await session.rollback()
+        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
 
 # возвращает слоаврь с JWT-токенами
 @router.post('/login')

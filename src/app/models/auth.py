@@ -1,9 +1,11 @@
 import re
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import SQLModel, Field
-from fastapi import Depends
+from fastapi import Depends, HTTPException
 from pydantic import field_validator, BaseModel, StringConstraints, constr
 from typing_extensions import Annotated
+from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 
 from app.services.hashers import make_password
 # TODO сделать permissions model
@@ -24,11 +26,10 @@ class UserModel(SQLModel):
     password: str = Field(min_length=8, max_length=100)
     is_active: bool = Field(default=True)
     is_superuser: bool = Field(default=False)
-    # TODO добавить функцию update_user
+
     def set_password(self, password: str):
         self.password = make_password(password)
     # функция для создания пользователя
-    # TODO добавить проверку есть ли почта в базе данных
     @classmethod
     async def create_user(cls, username:str, email:str, password:str, session: AsyncSession):
         user_data = {
@@ -54,6 +55,47 @@ class UserModel(SQLModel):
         await session.commit()
         await session.refresh(user)
         return user
+    
+    @classmethod
+    async def email_exists(cls, email:str, session: AsyncSession) -> bool:
+        """
+        Проверка существует ли пользователь с указанным email в базе данных
+        """
+        statement = select(cls).where(cls.email==email)
+        email_check = await session.execute(statement)
+        result = email_check.scalar_one_or_none()
+        return result is not None
+    
+    @staticmethod
+    async def change_username_by_id(user_id: int, new_username: str, session: AsyncSession):
+        """
+        Изменяет username пользователя по id
+        """
+        user = update(UserAuthModel).where(UserAuthModel.id==user_id).values(username=new_username)
+        await session.execute(user)
+        await session.commit()
+
+    @staticmethod
+    async def change_email_by_id(user_id: int, new_email: str, session: AsyncSession):
+        """
+        Изменяет email пользователя по id
+        """
+        try:
+            if await UserAuthModel.email_exists(email=new_email, session=session):
+                return False
+            else:
+                user = update(UserAuthModel).where(UserAuthModel.id==user_id).values(email=new_email)
+                await session.execute(user)
+                await session.commit()
+                return True
+            
+        except IntegrityError:  # Перехват ошибки нарушения уникальности (если email уже существует)
+            await session.rollback()
+            return False 
+        except Exception as e:
+            await session.rollback()
+            raise # Перебросить исключение для роутера
+
 
     @field_validator("email")
     def validate_email(cls, email):
