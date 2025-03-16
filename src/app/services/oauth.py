@@ -12,6 +12,7 @@ from fastapi import Depends, HTTPException, status, Cookie
 
 from app.models.auth import UserAuthModel, TokenModel
 from app.db import engine, get_session
+from hashers import get_password
 
 # ДЛЯ ТЕСТОВ!
 # engine = create_async_engine("sqlite+aiosqlite:///test.db", echo=True)
@@ -57,21 +58,32 @@ async def refresh_access_token(refresh_token: str, db: AsyncSession):
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-# TODO проверка refresh_token в базе данных
     try:
-        payload = decode_refresh_token(refresh_token)
-        email: str = payload.get('sub')
-        if email is None:
-            raise credentials_exception
-    except JWTError:
-        raise credentials_exception
-    
-    # Проверяем, что refresh-токен не истек
-    if datetime.now(timezone.utc) > datetime.fromtimestamp(payload.get('exp'), timezone.utc):
-        raise HTTPException(status_code=401, detail='Refresh token expired')
-    
-    new_access_token = create_access_token(email)
-    return {'access_token': new_access_token, 'token_type': 'bearer'}
+        # проверяем наличие токена в базе данных
+        statement = select(TokenModel).where(TokenModel.token==refresh_token)
+        token_check = await db.execute(statement)
+        result = token_check.scalar_one_or_none()
+        if result is not None:
+            # пробуем раскодировать токен
+            try:
+                payload = decode_refresh_token(refresh_token)
+                email: str = payload.get('sub')
+                if email is None:
+                    raise credentials_exception
+            except JWTError:
+                raise credentials_exception
+            
+            # Проверяем, что refresh-токен не истек
+            if datetime.now(timezone.utc) > datetime.fromtimestamp(payload.get('exp'), timezone.utc):
+                raise HTTPException(status_code=401, detail='Refresh token expired')
+            # создаем новый access токен
+            new_access_token = create_access_token(email)
+            return {'access_token': new_access_token, 'token_type': 'bearer'}
+        else:
+            raise HTTPException(status_code=401, detail='Refresh token expired or not found')
+    except HTTPException as e:
+        raise e
+
 
 # refresh_token: - Это имя, которое используется внутри функции для доступа к значению Cookie.
 async def get_refresh_token(refresh_token: str = Cookie(None)):
@@ -102,26 +114,35 @@ def decode_refresh_token(token: str):
 ##  refresh_token хранить в куки HttpOnly           ##
 ######################################################
 async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_session)) -> dict:
-    statement = select(UserAuthModel).where(UserAuthModel.email == form_data.username) # form_data.username содержит email в OAuth2PasswordRequestForm
-    result = await db.execute(statement)
-    user = result.scalars().first()
-    if user is None:
-        ...
-        return None
-    # TODO проверка пароля
+    try:
+        statement = select(UserAuthModel).where(UserAuthModel.email == form_data.username) # form_data.username содержит email в OAuth2PasswordRequestForm
+        result = await db.execute(statement)
+        user = result.scalar_one_or_none()
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect email or password")
+        # проверка правильности пароля
+        if get_password(form_data.password, statement.password) is False:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect password")
     
-    refresh_token = create_refresh_token(user.email)
+        refresh_token = create_refresh_token(user.email)
 
-    refresh_token_save = TokenModel(token=refresh_token, user_id=user.id)
-    db.add(refresh_token_save)
-    await db.commit()
-    await db.refresh(refresh_token_save)
+        refresh_token_save = TokenModel(token=refresh_token, user_id=user.id)
+        db.add(refresh_token_save)
+        await db.commit()
+        await db.refresh(refresh_token_save)
 
-    # возвращает JWT токены
-    return {
-        "access_token": create_access_token(user.email),
-        "refresh_token": refresh_token,
-    }
+        # возвращает JWT токены
+        return {
+            "access_token": create_access_token(user.email),
+            "refresh_token": refresh_token,
+        }
+    except HTTPException as e:
+        raise e
+    
 
 async def current_user(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_session)) -> Optional[UserAuthModel]:
     """
