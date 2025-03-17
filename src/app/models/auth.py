@@ -1,9 +1,9 @@
 import re
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlmodel import SQLModel, Field
+from sqlmodel import SQLModel, Field, Relationship
 from fastapi import Depends, HTTPException
 from pydantic import field_validator, BaseModel, StringConstraints, constr
-from typing_extensions import Annotated
+from typing_extensions import Annotated, Optional
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 
@@ -21,6 +21,8 @@ class RoleModel(SQLModel, table=True):
     """
     id: int = Field(default=None, primary_key=True)
     role: str = Field(default="user")
+
+    users: list["UserAuthModel"] = Relationship(back_populates="role")
 
 class TokenModel(SQLModel, table=True):
     id: int = Field(default=None, primary_key=True)
@@ -120,6 +122,9 @@ class UserModel(SQLModel):
 
 class UserAuthModel(UserModel, table=True):
     id: int = Field(default=None, primary_key=True)
+
+    role_id: Optional[int] = Field(default=None, foreign_key="role.id")
+    role: Optional[RoleModel] = Relationship(back_populates="users")
 
 class CreateUserModel(UserModel):
     pass
