@@ -8,10 +8,19 @@ from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 
 from app.services.hashers import make_password
-# TODO сделать permissions model
 EMAIL_REGEX = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
 PASSWORD_REGEX = r"^(?=.*[a-z,A-Z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$"
 
+class RoleModel(SQLModel, table=True):
+    """
+    Набор разрешений, который определяет какие действия может выполнить пользователь.
+    По умолчанию:
+    admin - Может иметь разрешения на создание, редактирование и удаление ресурсов.
+    moderator - Включает разрешения на создание, редактирование и публикацию контента, но не на удаление пользователей или изменение настроек системы. 
+    user - Имеет разрешение на просмотр ресурсов.
+    """
+    id: int = Field(default=None, primary_key=True)
+    role: str = Field(default="user")
 
 class TokenModel(SQLModel, table=True):
     id: int = Field(default=None, primary_key=True)
