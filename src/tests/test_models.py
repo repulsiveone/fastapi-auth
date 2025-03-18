@@ -3,7 +3,8 @@ from app.models.auth import UserAuthModel, TokenModel, ChangePasswordRequest
 from app.db import get_session
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.services.oauth import current_user, create_refresh_token
+from app.services.auth import current_user
+from app.services.tokens import create_refresh_token
 
 
 @pytest.mark.asyncio

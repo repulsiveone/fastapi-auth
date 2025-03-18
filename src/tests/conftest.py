@@ -5,9 +5,9 @@ from sqlalchemy.orm import sessionmaker
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.testclient import TestClient
 
-from app.models.auth import UserAuthModel, CreateUserModel
+from app.models.auth import UserAuthModel, CreateUserModel, RoleModel
 from app.services.hashers import make_password
-from app.services.oauth import login, current_user
+from app.services.auth import login, current_user
 from app.main import app
 
 @pytest_asyncio.fixture(name="test_session")

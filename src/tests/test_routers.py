@@ -6,7 +6,8 @@ from app.models.auth import UserAuthModel, CreateUserModel, TokenModel
 from sqlalchemy import select
 from app.db import get_session
 from app.services.hashers import get_password
-from app.services.oauth import get_refresh_token, current_user, login, decode_access_token
+from app.services.auth import current_user, login
+from app.services.tokens import get_refresh_token, decode_access_token
 from fastapi.security import OAuth2PasswordRequestForm
 
 app.include_router(auth_router)
@@ -14,11 +15,11 @@ app.include_router(auth_router)
 client = TestClient(app)
 
 @pytest.mark.asyncio
-async def test_signup(test_session):
+async def test_signup(test_user, test_session): # test_user добавлен для заполнения таблицы данными, для првоерки email_exists
     app.dependency_overrides[get_session] = lambda: test_session
     user_data = {
         "username": "testuser",
-        "email": "test@example.com",
+        "email": "new_test@example.com",
         "password": "Passw!@#ord123!"
     }
 

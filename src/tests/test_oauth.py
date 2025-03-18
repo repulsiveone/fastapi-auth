@@ -5,8 +5,8 @@ from fastapi import HTTPException
 from app.models.auth import TokenModel
 from sqlmodel import select
 
-from app.services.oauth import create_access_token, create_refresh_token, login, decode_access_token, current_user, refresh_access_token
-
+from app.services.auth import login, current_user
+from app.services.tokens import create_access_token, create_refresh_token, decode_access_token, refresh_access_token
 
 def test_create_access_token():
     access_token = create_access_token('xpfxz@bk.ru')

@@ -21,7 +21,7 @@ class RoleModel(SQLModel, table=True):
     user - Имеет разрешение на просмотр ресурсов.
     """
     id: int = Field(default=None, primary_key=True)
-    role: str = Field(default="user")
+    role: str = Field(default=None)
 
     users: list["UserAuthModel"] = Relationship(back_populates="role")
 
@@ -47,17 +47,33 @@ class UserModel(SQLModel):
         user_data = {
             "username": username,
             "email": email,
-            "password": password
+            "password": password,
         }
         # создание объекта с валидацией
         user = cls.model_validate(user_data)
         # хэширование пароля
         user.set_password(password)
-        #добавление пользователя в базу данных
-        session.add(user)
-        await session.commit()
-        await session.refresh(user)
-        return user
+        try:
+            check_email = await cls.email_exists(email=user_data["email"], session=session)
+            if check_email is True:
+                logger.error("Почта уже используется")
+                raise
+            else:
+                #добавление пользователя в базу данных
+                session.add(user)
+                await session.commit()
+                await session.refresh(user)
+                return user
+            
+        except SQLAlchemyError as e:
+            await session.rollback()
+            logger.error(f"Ошибка базы данных: {e}", exc_info=True)
+            raise
+        except Exception as e:
+            await session.rollback()
+            logger.error(f"{e}")
+            raise 
+
     # функция для создания супер-пользователя: создается пользователь -> устанавливается флаг True для is_superuser
     @classmethod
     async def create_superuser(cls, username:str, email:str, password:str, session: AsyncSession):
@@ -144,7 +160,7 @@ class UserModel(SQLModel):
 class UserAuthModel(UserModel, table=True):
     id: int = Field(default=None, primary_key=True)
 
-    role_id: Optional[int] = Field(default=None, foreign_key="role.id")
+    role_id: Optional[int] = Field(default=None, foreign_key="rolemodel.id", nullable=True)
     role: Optional[RoleModel] = Relationship(back_populates="users")
 
 class CreateUserModel(UserModel):

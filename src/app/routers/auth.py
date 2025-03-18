@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.responses import JSONResponse
 from typing import Optional
+from pydantic import ValidationError
 
 
 from app.db import get_session
@@ -35,17 +36,15 @@ async def get_myself_info(current_user = Depends(current_user)) -> dict:
 @router.post('/signup')
 async def signup(user: CreateUserModel, session: AsyncSession=Depends(get_session)):
     try:
-        if await CreateUserModel.email_exists(email=user.email, session=session):
-            raise HTTPException(status_code=409, detail="This email is already registered")
-        else:
-            user = await UserAuthModel.create_user(username=user.username, email=user.email, password=user.password, session=session)
-            return user
+        result_user = await UserAuthModel.create_user(username=user.username, email=user.email, password=user.password, session=session)
+        return result_user
     except SQLAlchemyError as e:
         await session.rollback()
-        logger.error(f"Ошибка базы данных при изменении username: {e}", exc_info=True)
+        logger.error(f"Ошибка базы данных: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Database error")
     except Exception as e:
         await session.rollback()
+        logger.error(f"{e}")
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
 
 # возвращает слоаврь с JWT-токенами
