@@ -5,8 +5,9 @@ from sqlalchemy.orm import sessionmaker
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.testclient import TestClient
 
-from app.models.auth import UserAuthModel, CreateUserModel, RoleModel
+from app.models.auth import UserAuthModel, CreateUserModel, RoleModel, TokenModel
 from app.services.hashers import make_password
+from app.services.tokens import create_refresh_token
 from app.services.auth import login, current_user
 from app.main import app
 
@@ -52,3 +53,16 @@ async def curr_fixture(test_user, test_session: AsyncSession):
 
     curr = await current_user(access_token, db=test_session)
     return curr
+
+@pytest_asyncio.fixture(name="roles")
+async def roles(test_session: AsyncSession):
+    DEFAULT_ROLES = [
+        {"name": "admin"},
+        {"name": "moderator"},
+        {"name": "user"}
+    ]
+
+    for r in DEFAULT_ROLES:
+        role_model = RoleModel(role=r["name"])
+        test_session.add(role_model)
+    return

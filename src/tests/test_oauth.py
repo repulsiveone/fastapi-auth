@@ -77,7 +77,7 @@ async def test_refresh_token_raise(test_user, test_session):
 
 
 @pytest.mark.asyncio
-async def test_refresh_token(test_user, test_session):
+async def test_refresh_token_success(test_user, test_session):
     form_data = OAuth2PasswordRequestForm(username="test@example.com", password="Passw!@#ord123!")
 
     user = await login(form_data=form_data, db=test_session)
@@ -91,6 +91,16 @@ async def test_refresh_token(test_user, test_session):
 
     assert curr.email == "test@example.com"
 
+@pytest.mark.asyncio
+async def test_refresh_token_raise(test_user, test_session):
+    form_data = OAuth2PasswordRequestForm(username="new_test@example.com", password="Passw!@#ord123!")
+
+    token = "qweqweqweqweqweqw"
+
+    with pytest.raises(HTTPException) as exc_info:
+        await refresh_access_token(token, test_session)
+
+    assert exc_info.value.detail == 'Refresh token expired or not found'
 
 # установить ACCESS_TOKEN_EXPIRE_MINUTES = 1 для правильной работы теста
 # @pytest.mark.asyncio

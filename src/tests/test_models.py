@@ -1,10 +1,11 @@
 import pytest
-from app.models.auth import UserAuthModel, TokenModel, ChangePasswordRequest
+from app.models.auth import UserAuthModel, TokenModel, ChangePasswordRequest, RoleModel
 from app.db import get_session
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.auth import current_user
 from app.services.tokens import create_refresh_token
+from sqlalchemy import select
 
 
 @pytest.mark.asyncio
@@ -62,4 +63,11 @@ async def test_change_password_request(test_user):
     change = ChangePasswordRequest(**request_data)
 
     assert change.new_password == 'newPassword!@32#'
-    
+
+
+@pytest.mark.asyncio
+async def test_roles(roles, test_current_user, test_session: AsyncSession):
+    test_result = await UserAuthModel.set_role(test_current_user.id, "user", test_session)
+    check_role = await UserAuthModel.check_user_role(test_current_user.id, test_session)
+
+    assert check_role == "user"

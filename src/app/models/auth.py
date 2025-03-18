@@ -5,6 +5,7 @@ from pydantic import field_validator, BaseModel
 from typing_extensions import Optional
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy.orm import selectinload
 
 from app.services.hashers import make_password
 from app.logger import logger
@@ -162,6 +163,31 @@ class UserAuthModel(UserModel, table=True):
 
     role_id: Optional[int] = Field(default=None, foreign_key="rolemodel.id", nullable=True)
     role: Optional[RoleModel] = Relationship(back_populates="users")
+
+    @classmethod
+    async def set_role(cls, user_id: int, rol_name: str, session: AsyncSession):
+        # Находим роль по имени
+        role_query = await session.execute(select(RoleModel).where(RoleModel.role == rol_name))
+        role = role_query.scalar_one_or_none()
+
+        if role is None:
+            raise ValueError(f"Роль с именем '{rol_name}' не найдена")
+
+        # Обновляем роль пользователя
+        user_update = update(cls).where(cls.id == user_id).values(role_id=role.id)
+        await session.execute(user_update)
+        await session.commit()
+
+    @classmethod
+    async def check_user_role(cls, user_id: int, session: AsyncSession):
+        # нужно явно загрузить связанный объект. это можно сделать с помощью метода .options() и функции selectinload (или joinedload).
+        user = await session.execute(select(UserAuthModel).where(UserAuthModel.id==user_id).options(selectinload(UserAuthModel.role)))
+        user = user.scalar_one_or_none()
+        if user is None:
+            raise ValueError(f"Пользователь с ID {user_id} не найден")
+        
+        return user.role.role
+        
 
 class CreateUserModel(UserModel):
     pass

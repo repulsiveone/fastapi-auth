@@ -27,9 +27,9 @@ async def create_default_roles(session: AsyncSession):
         {"name": "moderator"},
         {"name": "user"}
     ]
-    for role in DEFAULT_ROLES:
-        role = RoleModel(name=role["name"])
-        session.add(role)
+    for r in DEFAULT_ROLES:
+        role_model = RoleModel(role=r["name"])
+        session.add(role_model)
 
     try:
         await session.commit()
