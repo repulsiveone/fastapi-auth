@@ -1,13 +1,14 @@
 import re
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import SQLModel, Field, Relationship
-from fastapi import Depends, HTTPException
-from pydantic import field_validator, BaseModel, StringConstraints, constr
-from typing_extensions import Annotated, Optional
+from pydantic import field_validator, BaseModel
+from typing_extensions import Optional
 from sqlalchemy import select, update
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.services.hashers import make_password
+from app.logger import logger
+
 EMAIL_REGEX = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
 PASSWORD_REGEX = r"^(?=.*[a-z,A-Z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$"
 
@@ -78,13 +79,27 @@ class UserModel(SQLModel):
         return result is not None
     
     @staticmethod
-    async def change_username_by_id(user_id: int, new_username: str, session: AsyncSession):
+    async def change_username_by_id(user_id: int, new_username: str, session: AsyncSession) -> bool:
         """
         Изменяет username пользователя по id
         """
-        user = update(UserAuthModel).where(UserAuthModel.id==user_id).values(username=new_username)
-        await session.execute(user)
-        await session.commit()
+        try:
+            user = update(UserAuthModel).where(UserAuthModel.id==user_id).values(username=new_username)
+            await session.execute(user)
+            await session.commit()
+            return True
+        except IntegrityError:  # Перехват ошибки нарушения уникальности (если email уже существует)
+            await session.rollback()
+            logger.warning(f"Ошибка уникальности при изменении username: {e}")
+            return False 
+        except SQLAlchemyError as e:
+            await session.rollback()
+            logger.error(f"Ошибка базы данных при изменении username: {e}", exc_info=True)
+            raise
+        except Exception as e:
+            await session.rollback()
+            logger.critical(f"Неожиданная ошибка при изменении username: {e}", exc_info=True)
+            raise # Перебросить исключение для роутера
 
     @staticmethod
     async def change_email_by_id(user_id: int, new_email: str, session: AsyncSession):
@@ -102,9 +117,15 @@ class UserModel(SQLModel):
             
         except IntegrityError:  # Перехват ошибки нарушения уникальности (если email уже существует)
             await session.rollback()
+            logger.warning(f"Ошибка уникальности при изменении email: {e}")
             return False 
+        except SQLAlchemyError as e:
+            await session.rollback()
+            logger.error(f"Ошибка базы данных при изменении email: {e}", exc_info=True)
+            raise
         except Exception as e:
             await session.rollback()
+            logger.critical(f"Неожиданная ошибка при изменении email: {e}", exc_info=True)
             raise # Перебросить исключение для роутера
 
 

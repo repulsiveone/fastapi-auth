@@ -1,17 +1,19 @@
-from fastapi import Depends, FastAPI, Response
+from fastapi import Depends, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from sqlmodel import Session
+from sqlalchemy.exc import SQLAlchemyError
 from fastapi import APIRouter, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.responses import JSONResponse
 from typing import Optional
 
 
-from app.db import get_session, init_db
+from app.db import get_session
 from app.models.auth import UserAuthModel, CreateUserModel, TokenModel, ChangePasswordRequest
-from app.services.oauth import login, refresh_access_token,get_refresh_token, current_user
+from app.services.auth import login, current_user
+from app.services.tokens import refresh_access_token, get_refresh_token
 from app.services.hashers import get_password, make_password
+from app.logger import logger
 
 router = APIRouter()
 
@@ -38,6 +40,10 @@ async def signup(user: CreateUserModel, session: AsyncSession=Depends(get_sessio
         else:
             user = await UserAuthModel.create_user(username=user.username, email=user.email, password=user.password, session=session)
             return user
+    except SQLAlchemyError as e:
+        await session.rollback()
+        logger.error(f"Ошибка базы данных при изменении username: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Database error")
     except Exception as e:
         await session.rollback()
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
@@ -91,24 +97,33 @@ async def logout(
     Выход из системы (отзыв конкретного refresh токена)
     """
     # ищем refresh_token в базе данных
-    statement = select(TokenModel).where(TokenModel.token == refresh_token)
-    db_token = await session.execute(statement)
-    result = db_token.scalar_one_or_none()
+    try:
+        statement = select(TokenModel).where(TokenModel.token == refresh_token)
+        db_token = await session.execute(statement)
+        result = db_token.scalar_one_or_none()
 
-    if not result:
-        raise HTTPException(
-            status_code=404, detail="Refresh token not found"
-        )
+        if not result:
+            raise HTTPException(
+                status_code=404, detail="Refresh token not found"
+            )
+        
+        # помечаем токен как недействительный
+        result.invalidated = True
+        await session.commit()
+        await session.refresh(result)
+        response.delete_cookie(key="refresh_token")
+
+        headers = {"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"}
+        content = {"message": "Logged out successfully"}
+        return JSONResponse(content=content, headers=headers)
     
-    # помечаем токен как недействительный
-    result.invalidated = True
-    await session.commit()
-    await session.refresh(result)
-    response.delete_cookie(key="refresh_token")
-
-    headers = {"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"}
-    content = {"message": "Logged out successfully"}
-    return JSONResponse(content=content, headers=headers)
+    except SQLAlchemyError as e:
+        await session.rollback()
+        logger.error(f"Ошибка базы данных при изменении username: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Database error")
+    except Exception as e:
+        await session.rollback()
+        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
 
 @router.post('/logout_all')
 async def logout_all(
@@ -121,16 +136,25 @@ async def logout_all(
     # поулчаем id текущего пользователя
     user_id = current_user.id
     # находим все токены пользователя
-    statement = select(TokenModel).where(TokenModel.user_id == user_id)
-    refresh_token = await session.execute(statement)
-    result = refresh_token.scalars().all() # возвращает список
-    # помечаем токены как недействительные
-    for token in result:
-        token.invalidated = True
+    try:
+        statement = select(TokenModel).where(TokenModel.user_id == user_id)
+        refresh_token = await session.execute(statement)
+        result = refresh_token.scalars().all() # возвращает список
+        # помечаем токены как недействительные
+        for token in result:
+            token.invalidated = True
 
-    headers = {"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"}
-    content = {"message": "Logged out from all devices successfully"}
-    return JSONResponse(content=content, headers=headers)
+        headers = {"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"}
+        content = {"message": "Logged out from all devices successfully"}
+        return JSONResponse(content=content, headers=headers)
+    
+    except SQLAlchemyError as e:
+        await session.rollback()
+        logger.error(f"Ошибка базы данных при изменении username: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Database error")
+    except Exception as e:
+        await session.rollback()
+        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
 
 
 @router.post('/change_password')

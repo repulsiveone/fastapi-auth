@@ -1,28 +1,10 @@
-import os
-from rq_scheduler import Scheduler
-from dotenv import load_dotenv
-from datetime import datetime, timezone
-from celery import Celery, shared_task
-from celery.schedules import crontab
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from fastapi import Depends
-from app.db import get_session, engine
+from sqlalchemy.exc import DatabaseError, OperationalError, NoResultFound, SQLAlchemyError
+
+from app.db import engine
 from app.models.auth import TokenModel
-from rq import scheduler
-import sys
-import asyncio
-
-import logging
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-console_handler = logging.StreamHandler(sys.stdout)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-console_handler.setFormatter(formatter)
-logger.addHandler(console_handler)
-
-load_dotenv()
+from app.logger import logger
 
 async def cleanup_expired_refresh_tokens():
     logger.info("Задача cleanup_expired_refresh_tokens запущена.")
@@ -36,17 +18,27 @@ async def cleanup_expired_refresh_tokens():
                         TokenModel.invalidated == True
                     )
                 )
-                expired_tokens = result.scalars().all() 
+                expired_tokens = result.scalars().all()
 
+                if not expired_tokens:
+                    logger.info("Нет просроченных токенов для удаления.")
+                    return
                 # Удаляем каждый истекший токен
                 for token in expired_tokens:
                     await db.delete(token) 
 
                 # Фиксируем транзакцию
                 await db.commit()
+        
+            except (DatabaseError, OperationalError) as e:
+                # Откатываем транзакцию в случае ошибки
+                await db.rollback()
+                logger.error(f"Ошибка базы данных: {e}")
             except Exception as e:
                 # Откатываем транзакцию в случае ошибки
                 await db.rollback()
-                print(f"Error in cleanup_expired_refresh_tokens: {e}")
+                logger.error(f"Error in cleanup_expired_refresh_tokens: {e}")
+    except SQLAlchemyError as e:
+        logger.error(f"Ошибка при создании сессии: {e}")
     except Exception as e:
-        print(f"Error with session: {e}")
+        logger.critical(f"Error with session: {e}")

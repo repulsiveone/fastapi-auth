@@ -1,16 +1,16 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import AsyncSession
 import asyncio
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError, DatabaseError
 
 from app.worker import cleanup_expired_refresh_tokens
 from app.db import init_db, engine
 from app.models.auth import UserAuthModel, RoleModel
 from app.routers.auth import router as auth_router
 from app.db import get_session
+from app.logger import logger
 
 # вызов функции для очистки невалидных токенов каждые 24 часа
 async def run_periodically():
@@ -19,6 +19,9 @@ async def run_periodically():
         await asyncio.sleep(60*60*24)
 
 async def create_default_roles(session: AsyncSession):
+    """
+    создает основные роли в базе данных при запуске программы
+    """
     DEFAULT_ROLES = [
         {"name": "admin"},
         {"name": "moderator"},
@@ -27,12 +30,18 @@ async def create_default_roles(session: AsyncSession):
     for role in DEFAULT_ROLES:
         role = RoleModel(name=role["name"])
         session.add(role)
+
     try:
         await session.commit()
     except IntegrityError as e:
         await session.rollback()
+        logger.warning(f"Ошибка целостности данных: {e}. Возможно, роли уже существуют.")
+    except (DatabaseError, OperationalError) as e:
+        await session.rollback()
+        logger.error(f"Ошибка базы данных{e}")
     except Exception as e:
         await session.rollback()
+        logger.critical(f"Неожиданна ошибка{e}")
         raise
 
 # инициализация базы данных
@@ -47,7 +56,7 @@ async def lifespan(app: FastAPI):
     try:
         await task
     except asyncio.CancelledError:
-        print("Периодическая задача остановлена.")
+        logger.info("Периодическая задача остановлена")
 
 app = FastAPI(lifespan=lifespan)
 
