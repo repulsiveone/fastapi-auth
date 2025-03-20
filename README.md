@@ -56,6 +56,17 @@ async function login(username, password) {
 }
 ```
 
+### Использование ролей для ограничения доступа:
+```
+@router.post('/admin')
+async def admin(_ = Depends(require_role("admin"))):
+```
+Функия require_role используется для проверки, соответствует ли роль пользователя.  
+По умолчанию создается три роли:  
+-admin  
+-moderator  
+-user
+
 ## Запуск с помощью Docker
 Для начала необходимо настроить файл .env. 
 
