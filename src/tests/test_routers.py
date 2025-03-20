@@ -1,3 +1,4 @@
+from fastapi import HTTPException
 import pytest
 from fastapi.testclient import TestClient
 from app.main import app, auth_router
@@ -141,7 +142,7 @@ async def test_change_password(test_session, test_current_user):
     assert response.status_code == 200
 
 @pytest.mark.asyncio
-async def test_amdmin(roles, test_session, test_current_user):
+async def test_admin_success(roles, test_session, test_current_user):
     app.dependency_overrides[current_user] = lambda: test_current_user
 
     test_result = await UserAuthModel.set_role(test_current_user.id, "admin", test_session)
@@ -151,3 +152,19 @@ async def test_amdmin(roles, test_session, test_current_user):
     assert response.status_code == 200
 
     assert response.json()["message"] == "success"
+
+@pytest.mark.asyncio
+async def test_admin_raise(roles, test_session, test_current_user):
+    app.dependency_overrides[current_user] = lambda: test_current_user
+
+    test_result = await UserAuthModel.set_role(test_current_user.id, "user", test_session)
+    check_role = await UserAuthModel.check_user_role(test_current_user.id, test_session)
+
+    response = client.post('/admin')
+    assert response.status_code == 403
+
+@pytest.mark.asyncio
+async def test_admin_none_role(roles, test_session, test_current_user):
+    app.dependency_overrides[current_user] = lambda: test_current_user
+    response = client.post('/admin')
+    assert response.status_code == 403
