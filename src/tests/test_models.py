@@ -5,6 +5,7 @@ from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.auth import current_user
 from app.services.tokens import create_refresh_token
+from app.services.roles import require_role
 from sqlalchemy import select
 
 
@@ -71,3 +72,6 @@ async def test_roles(roles, test_current_user, test_session: AsyncSession):
     check_role = await UserAuthModel.check_user_role(test_current_user.id, test_session)
 
     assert check_role == "user"
+    
+    # get_role = await require_role("user")
+    # assert get_role == True

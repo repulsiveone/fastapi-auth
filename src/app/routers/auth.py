@@ -15,6 +15,7 @@ from app.services.auth import login, current_user
 from app.services.tokens import refresh_access_token, get_refresh_token
 from app.services.hashers import get_password, make_password
 from app.logger import logger
+from app.services.roles import require_role
 
 router = APIRouter()
 
@@ -170,5 +171,12 @@ async def change_password(
     await session.commit()
 
     return {'message', 'Password changed successfully'}
+
+
+# Для тестов
+@router.post('/admin')
+async def admin(_ = Depends(require_role("admin"))):
+    return {'message': 'success'}
+
 
 # TODO Восстановление пароля (/forgot-password и /reset-password)

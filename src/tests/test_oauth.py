@@ -6,6 +6,7 @@ from app.models.auth import TokenModel
 from sqlmodel import select
 
 from app.services.auth import login, current_user
+from app.services.roles import require_role
 from app.services.tokens import create_access_token, create_refresh_token, decode_access_token, refresh_access_token
 
 def test_create_access_token():
@@ -101,6 +102,7 @@ async def test_refresh_token_raise(test_user, test_session):
         await refresh_access_token(token, test_session)
 
     assert exc_info.value.detail == 'Refresh token expired or not found'
+
 
 # установить ACCESS_TOKEN_EXPIRE_MINUTES = 1 для правильной работы теста
 # @pytest.mark.asyncio

@@ -9,6 +9,7 @@ from app.services.hashers import get_password
 from app.services.auth import current_user, login
 from app.services.tokens import get_refresh_token, decode_access_token
 from fastapi.security import OAuth2PasswordRequestForm
+from app.services.roles import require_role
 
 app.include_router(auth_router)
 
@@ -138,4 +139,15 @@ async def test_change_password(test_session, test_current_user):
 
     response = client.post('/change_password', json=password_data)
     assert response.status_code == 200
-    
+
+@pytest.mark.asyncio
+async def test_amdmin(roles, test_session, test_current_user):
+    app.dependency_overrides[current_user] = lambda: test_current_user
+
+    test_result = await UserAuthModel.set_role(test_current_user.id, "admin", test_session)
+    check_role = await UserAuthModel.check_user_role(test_current_user.id, test_session)
+
+    response = client.post('/admin')
+    assert response.status_code == 200
+
+    assert response.json()["message"] == "success"

@@ -105,7 +105,7 @@ class UserModel(SQLModel):
             await session.execute(user)
             await session.commit()
             return True
-        except IntegrityError:  # Перехват ошибки нарушения уникальности (если email уже существует)
+        except IntegrityError:  # Перехват ошибки нарушения уникальности
             await session.rollback()
             logger.warning(f"Ошибка уникальности при изменении username: {e}")
             return False 
@@ -167,26 +167,39 @@ class UserAuthModel(UserModel, table=True):
     @classmethod
     async def set_role(cls, user_id: int, rol_name: str, session: AsyncSession):
         # Находим роль по имени
-        role_query = await session.execute(select(RoleModel).where(RoleModel.role == rol_name))
-        role = role_query.scalar_one_or_none()
+        try:
+            role_query = await session.execute(select(RoleModel).where(RoleModel.role == rol_name))
+            role = role_query.scalar_one_or_none()
 
-        if role is None:
-            raise ValueError(f"Роль с именем '{rol_name}' не найдена")
+            if role is None:
+                raise ValueError(f"Роль с именем '{rol_name}' не найдена")
 
-        # Обновляем роль пользователя
-        user_update = update(cls).where(cls.id == user_id).values(role_id=role.id)
-        await session.execute(user_update)
-        await session.commit()
+            # Обновляем роль пользователя
+            user_update = update(cls).where(cls.id == user_id).values(role_id=role.id)
+            await session.execute(user_update)
+            await session.commit()
+        except SQLAlchemyError as e:
+            logger.error(f"Ошибка базы данных: {e}")
+            raise
+        except Exception as e:
+            logger.critical(f"Неожиданная ошибка при установки роли: {e}")
 
     @classmethod
     async def check_user_role(cls, user_id: int, session: AsyncSession):
+        try:
         # нужно явно загрузить связанный объект. это можно сделать с помощью метода .options() и функции selectinload (или joinedload).
-        user = await session.execute(select(UserAuthModel).where(UserAuthModel.id==user_id).options(selectinload(UserAuthModel.role)))
-        user = user.scalar_one_or_none()
-        if user is None:
-            raise ValueError(f"Пользователь с ID {user_id} не найден")
+            user = await session.execute(select(UserAuthModel).where(UserAuthModel.id==user_id).options(selectinload(UserAuthModel.role)))
+            user = user.scalar_one_or_none()
+            if user is None:
+                raise ValueError(f"Пользователь с ID {user_id} не найден")
+            # возвращает имя роли
+            return user.role.role
         
-        return user.role.role
+        except SQLAlchemyError as e:
+            logger.error(f"Ошибка базы данных: {e}")
+            raise
+        except Exception as e:
+            logger.critical(f"Неожиданная ошибка при проверке роли: {e}")
         
 
 class CreateUserModel(UserModel):
